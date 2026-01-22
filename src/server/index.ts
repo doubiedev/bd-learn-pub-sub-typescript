@@ -48,6 +48,8 @@ async function main() {
             } catch (err) {
                 console.error("Error publishing resume message:", err);
             }
+        } else if (command === "help") {
+            printServerHelp();
         } else if (command === "quit") {
             console.log("Goodbye!");
             process.exit(0);
