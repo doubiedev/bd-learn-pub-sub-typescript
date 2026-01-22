@@ -1,7 +1,13 @@
 import amqp from "amqplib";
 import { publishJSON } from "../internal/pubsub/publish.js";
-import { ExchangePerilDirect, PauseKey } from "../internal/routing/routing.js";
+import {
+    ExchangePerilDirect,
+    ExchangePerilTopic,
+    GameLogSlug,
+    PauseKey,
+} from "../internal/routing/routing.js";
 import { getInput, printServerHelp } from "../internal/gamelogic/gamelogic.js";
+import { declareAndBind, SimpleQueueType } from "../internal/pubsub/consume.js";
 
 async function main() {
     const rabbitConnString = "amqp://guest:guest@localhost:5672/";
@@ -22,6 +28,14 @@ async function main() {
     );
 
     const publishCh = await conn.createConfirmChannel();
+
+    declareAndBind(
+        conn,
+        ExchangePerilTopic,
+        GameLogSlug,
+        `${GameLogSlug}.*`,
+        SimpleQueueType.Durable,
+    );
 
     printServerHelp();
 
@@ -48,8 +62,6 @@ async function main() {
             } catch (err) {
                 console.error("Error publishing resume message:", err);
             }
-        } else if (command === "help") {
-            printServerHelp();
         } else if (command === "quit") {
             console.log("Goodbye!");
             process.exit(0);
