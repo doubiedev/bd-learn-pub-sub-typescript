@@ -32,13 +32,26 @@ export async function subscribeJSON<T>(
     queueType: SimpleQueueType,
     handler: (data: T) => void,
 ): Promise<void> {
-    const [ch, queue] = await declareAndBind(conn, exchange, queueName, key, queueType);
-    ch.consume(queue.queue, (msg: amqp.ConsumeMessage | null) => {
-        if (msg === null) {
+    const [ch, queue] = await declareAndBind(
+        conn,
+        exchange,
+        queueName,
+        key,
+        queueType,
+    );
+
+    await ch.consume(queue.queue, function(msg: amqp.ConsumeMessage | null) {
+        if (!msg) return;
+
+        let data: T;
+        try {
+            data = JSON.parse(msg.content.toString());
+        } catch (err) {
+            console.error("Could not unmarshal message:", err);
             return;
         }
-        const content = JSON.parse(msg.content.toString());
-        handler(content);
+
+        handler(data);
         ch.ack(msg);
     });
-};
+}
