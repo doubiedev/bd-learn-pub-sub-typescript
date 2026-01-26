@@ -1,4 +1,4 @@
-import type { ConfirmChannel } from "amqplib";
+import type { Channel, ConfirmChannel } from "amqplib";
 import type {
     ArmyMove,
     RecognitionOfWar,
@@ -49,9 +49,9 @@ export function handlerMove(
                             `${WarRecognitionsPrefix}.${gs.getUsername()}`,
                             recognition,
                         );
+                        return AckType.Ack;
                     } catch (err) {
                         console.error("Error publishing war recognition:", err);
-                    } finally {
                         return AckType.NackRequeue;
                     }
                 default:
