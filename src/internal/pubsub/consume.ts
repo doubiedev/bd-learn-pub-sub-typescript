@@ -49,7 +49,7 @@ export async function subscribeJSON<T>(
         queueType,
     );
 
-    await ch.consume(queue.queue, async function(msg: amqp.ConsumeMessage | null) {
+    await ch.consume(queue.queue, async (msg: amqp.ConsumeMessage | null) => {
         if (!msg) return;
 
         let data: T;

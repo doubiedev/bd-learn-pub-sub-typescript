@@ -53,20 +53,20 @@ async function main() {
 
     await subscribeJSON(
         conn,
-        ExchangePerilTopic,
-        `${WarRecognitionsPrefix}`,
-        `${WarRecognitionsPrefix}.*`,
-        SimpleQueueType.Durable,
-        handlerWar(gs),
-    );
-
-    await subscribeJSON(
-        conn,
         ExchangePerilDirect,
         `${PauseKey}.${username}`,
         PauseKey,
         SimpleQueueType.Transient,
         handlerPause(gs),
+    );
+
+    await subscribeJSON(
+        conn,
+        ExchangePerilTopic,
+        WarRecognitionsPrefix,
+        `${WarRecognitionsPrefix}.*`,
+        SimpleQueueType.Durable,
+        handlerWar(gs),
     );
 
     while (true) {
