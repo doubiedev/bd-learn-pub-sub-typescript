@@ -38,7 +38,7 @@ export async function subscribe<T>(
     conn: amqp.ChannelModel,
     exchange: string,
     queueName: string,
-    key: string,
+    routingKey: string,
     queueType: SimpleQueueType,
     handler: (data: T) => Promise<AckType> | AckType,
     unmarshaller: (data: Buffer) => T,
@@ -47,37 +47,46 @@ export async function subscribe<T>(
         conn,
         exchange,
         queueName,
-        key,
+        routingKey,
         queueType,
     );
 
-    await ch.consume(queue.queue, async (msg: amqp.ConsumeMessage | null) => {
-        if (!msg) return;
+    await ch.consume(
+        queue.queue,
+        async (msg: amqp.ConsumeMessage | null) => {
+            if (!msg) return;
 
-        try {
-            const data = unmarshaller(msg.content);
-            const result = await handler(data);
-            switch (result) {
-                case AckType.Ack:
-                    ch.ack(msg);
-                    break;
-                case AckType.NackDiscard:
-                    ch.nack(msg, false, false);
-                    break;
-                case AckType.NackRequeue:
-                    ch.nack(msg, false, true);
-                    break;
-                default:
-                    const unreachable: never = result;
-                    console.error("Unexpected ack type:", unreachable);
-                    return;
+            let data: T;
+            try {
+                data = unmarshaller(msg.content);
+            } catch (err) {
+                console.error("Could not decode message:", err);
+                return;
             }
-        } catch (err) {
-            console.error("Error handling message:", err);
-            ch.nack(msg, false, false);
-            return;
-        }
-    });
+
+            try {
+                const result = await handler(data);
+                switch (result) {
+                    case AckType.Ack:
+                        ch.ack(msg);
+                        break;
+                    case AckType.NackDiscard:
+                        ch.nack(msg, false, false);
+                        break;
+                    case AckType.NackRequeue:
+                        ch.nack(msg, false, true);
+                        break;
+                    default:
+                        const unreachable: never = result;
+                        console.error("Unexpected ack type:", unreachable);
+                }
+            } catch (err) {
+                console.error("Error in handler:", err);
+                ch.nack(msg, false, false);
+            }
+        },
+        { noAck: false },
+    );
 }
 
 export async function subscribeJSON<T>(
@@ -88,17 +97,9 @@ export async function subscribeJSON<T>(
     queueType: SimpleQueueType,
     handler: (data: T) => Promise<AckType> | AckType,
 ): Promise<void> {
-    function unmarshalJSON(data: Buffer): T {
-        try {
-            const out = JSON.parse(data.toString());
-            return out;
-        } catch (err) {
-            console.error("Could not unmarshal message:", err);
-            throw err;
-        }
-    }
-
-    await subscribe(conn, exchange, queueName, key, queueType, handler, unmarshalJSON);
+    return subscribe(conn, exchange, queueName, key, queueType, handler, (data) =>
+        JSON.parse(data.toString()),
+    );
 }
 
 export async function subscribeMsgPack<T>(
@@ -109,15 +110,13 @@ export async function subscribeMsgPack<T>(
     queueType: SimpleQueueType,
     handler: (data: T) => Promise<AckType> | AckType,
 ): Promise<void> {
-    function unmarshalMsgPack(data: Buffer): T {
-        try {
-            const out = decode(data);
-            return out;
-        } catch (err) {
-            console.error("Could not unmarshal message:", err);
-            throw err;
-        }
-    }
-
-    await subscribe(conn, exchange, queueName, key, queueType, handler, unmarshalMsgPack);
+    return subscribe(
+        conn,
+        exchange,
+        queueName,
+        key,
+        queueType,
+        handler,
+        (data) => decode(data) as T,
+    );
 }

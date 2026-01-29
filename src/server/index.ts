@@ -7,8 +7,11 @@ import {
     PauseKey,
 } from "../internal/routing/routing.js";
 import { getInput, printServerHelp } from "../internal/gamelogic/gamelogic.js";
-import { SimpleQueueType, subscribeMsgPack } from "../internal/pubsub/consume.js";
-import { handlerGameLog } from "./handlers.js";
+import {
+    SimpleQueueType,
+    subscribeMsgPack,
+} from "../internal/pubsub/consume.js";
+import { handlerLog } from "./handlers.js";
 
 async function main() {
     const rabbitConnString = "amqp://guest:guest@localhost:5672/";
@@ -36,7 +39,7 @@ async function main() {
         GameLogSlug,
         `${GameLogSlug}.*`,
         SimpleQueueType.Durable,
-        handlerGameLog,
+        handlerLog(),
     );
 
     printServerHelp();
