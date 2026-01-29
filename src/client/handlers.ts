@@ -65,6 +65,8 @@ export function handlerMove(
 
 export function handlerWar(
     gs: GameState,
+    ch: ConfirmChannel,
+    publishGameLog: (channel: ConfirmChannel, username: string, message: string) => Promise<void>,
 ): (war: RecognitionOfWar) => Promise<AckType> {
     return async (war: RecognitionOfWar): Promise<AckType> => {
         try {
@@ -76,9 +78,29 @@ export function handlerWar(
                 case WarOutcome.NoUnits:
                     return AckType.NackDiscard;
                 case WarOutcome.YouWon:
+                    try {
+                        await publishGameLog(ch, gs.getUsername(), `${outcome.winner} won a war against ${outcome.loser}`);
+                        return AckType.Ack;
+                    } catch (err) {
+                        console.error("Error publishing game log: ", err);
+                        return AckType.NackRequeue;
+                    }
                 case WarOutcome.OpponentWon:
+                    try {
+                        await publishGameLog(ch, gs.getUsername(), `${outcome.winner} won a war against ${outcome.loser}`);
+                        return AckType.Ack;
+                    } catch (err) {
+                        console.error("Error publishing game log: ", err);
+                        return AckType.NackRequeue;
+                    }
                 case WarOutcome.Draw:
-                    return AckType.Ack;
+                    try {
+                        await publishGameLog(ch, gs.getUsername(), `A war between ${outcome.attacker} and ${outcome.defender} resulted in a draw`);
+                        return AckType.Ack;
+                    } catch (err) {
+                        console.error("Error publishing game log: ", err);
+                        return AckType.NackRequeue;
+                    }
                 default:
                     const unreachable: never = outcome;
                     console.log("Unexpected war resolution: ", unreachable);
