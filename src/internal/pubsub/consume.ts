@@ -1,3 +1,4 @@
+import { decode } from "@msgpack/msgpack";
 import amqp, { type Channel } from "amqplib";
 
 export enum AckType {
@@ -33,13 +34,14 @@ export async function declareAndBind(
     return [ch, queue];
 }
 
-export async function subscribeJSON<T>(
+export async function subscribe<T>(
     conn: amqp.ChannelModel,
     exchange: string,
     queueName: string,
     key: string,
     queueType: SimpleQueueType,
     handler: (data: T) => Promise<AckType> | AckType,
+    unmarshaller: (data: Buffer) => T,
 ): Promise<void> {
     const [ch, queue] = await declareAndBind(
         conn,
@@ -52,15 +54,8 @@ export async function subscribeJSON<T>(
     await ch.consume(queue.queue, async (msg: amqp.ConsumeMessage | null) => {
         if (!msg) return;
 
-        let data: T;
         try {
-            data = JSON.parse(msg.content.toString());
-        } catch (err) {
-            console.error("Could not unmarshal message:", err);
-            return;
-        }
-
-        try {
+            const data = unmarshaller(msg.content);
             const result = await handler(data);
             switch (result) {
                 case AckType.Ack:
@@ -83,4 +78,46 @@ export async function subscribeJSON<T>(
             return;
         }
     });
+}
+
+export async function subscribeJSON<T>(
+    conn: amqp.ChannelModel,
+    exchange: string,
+    queueName: string,
+    key: string,
+    queueType: SimpleQueueType,
+    handler: (data: T) => Promise<AckType> | AckType,
+): Promise<void> {
+    function unmarshalJSON(data: Buffer): T {
+        try {
+            const out = JSON.parse(data.toString());
+            return out;
+        } catch (err) {
+            console.error("Could not unmarshal message:", err);
+            throw err;
+        }
+    }
+
+    await subscribe(conn, exchange, queueName, key, queueType, handler, unmarshalJSON);
+}
+
+export async function subscribeMsgPack<T>(
+    conn: amqp.ChannelModel,
+    exchange: string,
+    queueName: string,
+    key: string,
+    queueType: SimpleQueueType,
+    handler: (data: T) => Promise<AckType> | AckType,
+): Promise<void> {
+    function unmarshalMsgPack(data: Buffer): T {
+        try {
+            const out = decode(data);
+            return out;
+        } catch (err) {
+            console.error("Could not unmarshal message:", err);
+            throw err;
+        }
+    }
+
+    await subscribe(conn, exchange, queueName, key, queueType, handler, unmarshalMsgPack);
 }
