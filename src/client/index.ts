@@ -20,7 +20,7 @@ import { commandSpawn } from "../internal/gamelogic/spawn.js";
 import { commandMove } from "../internal/gamelogic/move.js";
 import { handlerMove, handlerPause, handlerWar } from "./handlers.js";
 import { publishJSON, publishMsgPack } from "../internal/pubsub/publish.js";
-import { type GameLog } from "../internal/gamelogic/logs.js";
+import type { GameLog } from "../internal/gamelogic/logs.js";
 
 async function main() {
     const rabbitConnString = "amqp://guest:guest@localhost:5672/";
@@ -39,16 +39,6 @@ async function main() {
             }
         }),
     );
-
-    async function publishGameLog(channel: amqp.ConfirmChannel, username: string, message: string) {
-        const log: GameLog = {
-            currentTime: new Date(),
-            message: message,
-            username: username,
-        };
-
-        await publishMsgPack(channel, ExchangePerilTopic, `${GameLogSlug}.${username}`, log);
-    }
 
     const username = await clientWelcome();
     const gs = new GameState(username);
@@ -78,7 +68,7 @@ async function main() {
         WarRecognitionsPrefix,
         `${WarRecognitionsPrefix}.*`,
         SimpleQueueType.Durable,
-        handlerWar(gs, publishCh, publishGameLog),
+        handlerWar(gs, publishCh),
     );
 
     while (true) {
@@ -119,6 +109,25 @@ async function main() {
             continue;
         }
     }
+}
+
+export function publishGameLog(
+    ch: amqp.ConfirmChannel,
+    username: string,
+    message: string,
+): Promise<void> {
+    const log: GameLog = {
+        currentTime: new Date(),
+        message,
+        username,
+    };
+
+    return publishMsgPack(
+        ch,
+        ExchangePerilTopic,
+        `${GameLogSlug}.${username}`,
+        log,
+    );
 }
 
 main().catch((err) => {
